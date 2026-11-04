@@ -2,7 +2,7 @@
 
 EXSU 620 Digital Prototyping, Project 01 (Group 1). Bench prototype.
 
-After surgery, nurses judge bleeding from a drain by eye and write down a colour word. Drain Optics clips a colour sensor onto the drain tubing, measures how red the fluid is, converts that to **% blood** with a calibration curve, and estimates the **blood loss rate in mL/h**. A NeoPixel ring and a speaker raise alarms, and a button silences them.
+After surgery, nurses judge bleeding from a drain by eye and write down a colour word. Drain Optics clips a colour sensor onto the drain tubing, measures how red the fluid is, converts that to **% blood** with a calibration curve, and estimates the **blood loss rate in mL/h**. A second sensor on the drip chamber watches for drops and raises a **BLOCKED** alarm when they stop. A NeoPixel ring and a speaker raise alarms, a button silences them, and the software subgroup's **web dashboard** and **Telegram channel** show the readings and send CRITICAL alerts by text.
 
 > **Bench prototype only.** Dyed water stands in for blood. The alarm limits are bench demo values with no clinical basis. Not for use on patients.
 
@@ -10,16 +10,16 @@ After surgery, nurses judge bleeding from a drain by eye and write down a colour
 
 | Folder | Contents |
 |---|---|
-| [`firmware/`](firmware/) | MicroPython for the Raspberry Pi Pico 2 W. `main.py` is the monitor that runs the prototype. |
-| [`firmware/tools/`](firmware/tools/) | `sensor1_read.py` (calibration helper), `hw_test.py` (wiring bring-up test). |
-| [`firmware/archive/`](firmware/archive/) | `monitor_2sensor.py`: earlier two-sensor design with drop counting (not used in the final build). |
+| [`firmware/`](firmware/) | MicroPython for the Raspberry Pi Pico 2 W. `main.py` is the final two-sensor monitor. |
+| [`firmware/tools/`](firmware/tools/) | Calibration helper, drop-counter test, pin finder, wiring bring-up test. |
+| [`firmware/archive/`](firmware/archive/) | Earlier versions: one-sensor monitor, and the two-sensor version that used drop counting for flow. |
 | [`cad/tube-clip/`](cad/tube-clip/) | Tube clip v4 (holds the sensor and white LED around the drain tube): STL, STEP, CadQuery source. |
 | [`cad/enclosure/`](cad/enclosure/) | Electronics case v3: base, snap lid, light cap (STL + STEP), assembly STEP, CadQuery source. |
 | [`docs/`](docs/) | Wiring diagrams, case pictures, serial data format ([`docs/serial-output.md`](docs/serial-output.md)). |
 | [`docs/photos/`](docs/photos/) | Build log: photos of the prototype being built and tested. |
 | [`docs/videos/`](docs/videos/) | Demo videos: device alarm states and the live dashboard. |
 | [`report/`](report/) | Design dossier (D9, PDF), filled group report, failure modes list. |
-| [`software/`](software/) | Placeholder for the software subgroup's laptop service and dashboard. |
+| [`software/`](software/) | Software subgroup: web dashboard and Telegram alerts. |
 | [`BOM.md`](BOM.md) | Bill of materials. |
 
 ## How it works
@@ -33,18 +33,20 @@ After surgery, nurses judge bleeding from a drain by eye and write down a colour
    |---|---|---|---|---|
    | % blood | 0 | 0.5 | 1.0 | 2.0 |
 
-5. Blood loss rate (mL/h) = % blood / 100 × drain flow (mL/h). **One colour sensor cannot measure flow**, so `FLOW_MLH` is measured by hand (collect output for 5 min in a cup, mL × 12) and typed into `main.py`. The rate is therefore an estimate, not a measured flow rate.
-6. Alarm states drive the light ring and speaker (see below).
+5. **Blood loss rate (mL/h) = % blood / 100 × drain flow (mL/h), calculated from sensor 1.** The drain flow `FLOW_MLH` is measured by hand (timed cup: our calibration run collected 15.7 mL in 10 s = 5652 mL/h; at that flow 1.77 % blood = 100 mL/h, the CRITICAL limit) and typed into `main.py`, so the rate is an estimate, not a measured flow rate.
+6. **Sensor 2** is taped to the IV drip chamber with its own LED on and counts drops (light change > 1.8 %). We first planned to measure flow from the drop rate, but on the bench sensor 2 **misses some drops**, so it is used only to detect a **blocked line**: no drop for 10 s = BLOCKED.
+7. Alarm states drive the light ring and speaker (see below), and the readings go over USB to the laptop dashboard and Telegram.
 
 ## Hardware
 
-Full parts list in [BOM.md](BOM.md). Wiring picture: [`docs/images/full-wiring.png`](docs/images/full-wiring.png) (the final build uses only sensor 1; ignore sensor 2 / drip chamber in that picture).
+Full parts list in [BOM.md](BOM.md). Wiring picture: [`docs/images/full-wiring.png`](docs/images/full-wiring.png). Sensor 2 is now wired with 4 jumpers as in the table below (the picture shows an older Grove option for it).
 
-### Pin map (final, one sensor)
+### Pin map (final, two sensors)
 
 | Part | Connection |
 |---|---|
 | TCS34725 colour sensor (sensor 1, tube clip) | Grove I2C0: SDA GP8, SCL GP9, VIN 3V3, GND. Sensor's own LED pin → GND (onboard LED off). Address 0x29. |
+| TCS34725 colour sensor (sensor 2, drip chamber) | 4 jumpers: SDA → GP6 (pin 9), SCL → GP7 (pin 10), **VIN** → 3V3 OUT (pin 36), GND → GND (pin 8). LED and INT pins left open (its LED stays on). Software I2C at 100 kHz. Address 0x29. |
 | White LED (in the clip's light hole) | VBUS 5 V → 330 Ω → LED long leg (+); LED short leg (−) → GP15. GP15 LOW = LED on. |
 | NeoPixel Ring 16 | Data In → GP18 (Grove D18), 5 V and GND from the same socket. |
 | PAM8302 amplifier + 8 Ω speaker | A+ → GP20 (PWM tone), A− → GND, Vin → VBUS, SD left open. Speaker on the screw terminal. |
@@ -85,24 +87,26 @@ Dyed-water IV bag hung ~50 cm up → drip chamber → roller clamp → tubing th
 
 1. Flash **MicroPython** for the Raspberry Pi Pico 2 W (hold BOOTSEL, plug in USB, drag the `.uf2` from micropython.org onto the drive).
 2. Open **Thonny**, choose the MicroPython (Raspberry Pi Pico) interpreter.
-3. (Optional) Run `firmware/tools/hw_test.py` to check every part is wired right.
-4. Measure the drain flow (5 min in a cup, mL × 12) and set `FLOW_MLH` at the top of `firmware/main.py`.
+3. (Optional) Run `firmware/tools/hw_test.py` to check the wiring, and `firmware/tools/drops_per_second.py` to position sensor 2 on the drip chamber (aim at the drip tip; black tape against room light).
+4. Measure the drain flow (collect in a cup for a timed period, mL × 3600 ÷ seconds; ours: 15.7 mL in 10 s = 5652) and set `FLOW_MLH` at the top of `firmware/main.py`.
 5. Save `firmware/main.py` to the Pico as `main.py`. It starts on power-up. The `neopixel` module is built into MicroPython.
-6. Watch the output in Thonny's shell. One line per reading:
+6. Watch the output in Thonny's shell. One line per second:
 
    ```
-   BLOOD_PCT:0.85% | EST_RATE:1.5 mL/h (at 180 mL/h flow) | STATE:ADVISORY | SPREAD:0.0123 | SILENCED:False
+   BLOOD_PCT:0.85% | EST_RATE:48.0 mL/h | STATE:ADVISORY | RAW_GR:0.3512 | CLEAR:850 | DROPS/S:1 | TOTAL_DROPS:37 | SILENCED:False
    ```
 
 ### Settings (top of `main.py`)
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `FLOW_MLH` | 180.0 | Measured drain flow, mL/h. Re-measure if the clamp moves. |
+| `FLOW_MLH` | 5652.0 | Measured drain flow, mL/h. Re-measure if the clamp moves. |
 | `ADVISORY_PCT` | 0.5 | % blood for the amber alarm. |
-| `CRITICAL_PCT` | 1.8 | % blood for the red alarm. |
+| `CRITICAL_PCT` | 1.77 | % blood for the red alarm (= 100 mL/h at 5652 mL/h flow). |
 | `HYST_PCT` | 0.1 | Hysteresis before stepping back down. |
-| `STATIC_MS` / `STATIC_BAND` | 60 s / 0.2 % | Reading frozen this long = CHECK DRAIN. Tune using `SPREAD` in the output. |
+| `NO_DROP_S` | 10 s | No drop seen by sensor 2 for this long = BLOCKED. Set it a little longer than the normal gap between drops. |
+| `DROP_THRESHOLD_PCT` | 1.8 % | Light change on sensor 2 that counts as a drop. Lower if drops are missed; raise if it counts with the clamp closed. |
+| `STATIC_MS` / `STATIC_BAND` | 60 s / 0.2 % | Sensor 1 reading frozen this long = CHECK DRAIN. |
 | `SILENCE_MS` | 120 s | How long the button silences the sound. |
 | `VOLUME` | 100 | Speaker PWM duty (0–65535). |
 
@@ -111,12 +115,15 @@ Dyed-water IV bag hung ~50 cm up → drip chamber → roller clamp → tubing th
 | State | Ring | Sound | Trigger |
 |---|---|---|---|
 | NORMAL | green, filled in proportion to % blood | silent | below advisory |
-| ADVISORY | amber | slow beep, 500 Hz | % blood ≥ 0.5 |
-| CRITICAL | red | fast beeps, 1 kHz | % blood ≥ 1.8 |
-| CHECK_DRAIN | cyan, full ring | long beep every 2 s | reading has not moved for 60 s (possible blocked or clotted line; never reported as "no bleeding") |
-| AIR_BLANK | blue, full ring | long beep every 2 s | almost no light reaches the sensor (empty tube or unplugged sensor) |
+| ADVISORY | amber / yellow | slow beep, 500 Hz | % blood ≥ 0.5 |
+| CRITICAL | red | fast beeps, 1 kHz | % blood ≥ 1.77 (= 100 mL/h) |
+| **BLOCKED** | **blue, full ring** | **continuous beeping, 880 Hz** | sensor 2 has seen no drop for 10 s (blocked or clamped line, empty bag). Lasts until drops return, then the ring goes back to sensor 1's colour. Never reported as "no bleeding". |
+| CHECK_DRAIN | cyan, full ring | long beep every 2 s | sensor 1 reading has not moved for 60 s |
+| AIR_BLANK | dim blue, full ring | long beep every 2 s | almost no light reaches sensor 1 (empty tube or unplugged sensor) |
 
-Pressing the button silences the sound for 2 minutes; the light stays on. The sound returns early if the alarm becomes new or worse.
+Pressing the button silences the sound for 2 minutes; the light stays on. The sound returns early if the alarm becomes new or worse (including a new BLOCKED alarm).
+
+The dashboard and Telegram alerts are described in [`software/README.md`](software/README.md).
 
 ### Calibration
 
@@ -130,11 +137,13 @@ Measured on our rig (2026-11-02): useful range is below about 1 % blood; above t
 
 These are reported in full in the design dossier (D7 verification report and D9 traceability matrix):
 
-- Flow is entered by hand, not measured, so the mL/h figure is an estimate.
+- Flow is entered by hand (timed cup), not measured live, so the mL/h figure is an estimate.
+- Sensor 2 misses some drops (it sees reflected light from its own LED, and small drops barely change it), so drop counting was **not accurate enough for flow** and is used only for the BLOCKED alarm. A missed drop can delay the alarm clearing; a run of missed drops longer than 10 s can give a false BLOCKED.
 - Alarms are on % blood, not on the mL/h rate, and the "rate doubles within 30 min" rule (CR-2) is not on the device.
 - No fouled-window, lamp-failure or saturation check in the final firmware.
-- The laptop service, dashboard and Telegram notification were built and demonstrated by the software subgroup (see the Demo section); their source code goes in [`software/`](software/).
+- The web dashboard and Telegram channel were built and demonstrated by the software subgroup (see the Demo section); their source code goes in [`software/`](software/).
 - Firmware is MicroPython, not the CircuitPython named on the project card.
+- An air-filled (empty) tube reads the same as clear water (A = 0.00, 0 % blood) and is not flagged unless almost no light reaches the sensor (AIR_BLANK).
 - Bench only: dyed water does not scatter light like real drain fluid.
 
 ## Team
