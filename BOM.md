@@ -6,7 +6,7 @@ All parts come from the EXSU 620 Project 01 kit unless noted.
 |---|---|---|
 | 1 | Raspberry Pi Pico 2 W (+1 spare) | Microcontroller, MicroPython |
 | 1 | Grove Shield for Pi Pico v1.0 | I2C0 port for the sensor, D18 socket for the ring |
-| 1 | TCS34725 RGB colour sensor | Measures light through the drain tube (I2C 0x29) |
+| 2 | TCS34725 RGB colour sensor | Sensor 1: light through the drain tube (I2C0). Sensor 2: drop / blocked-line detector on the drip chamber (software I2C GP6/GP7). Both address 0x29 |
 | 1 | Grove to STEMMA QT / jumper cable | Sensor to Grove I2C0 |
 | 1 | White 5 mm LED | Light source in the tube clip |
 | 1 | 330 Ω resistor (330–680 Ω OK) | LED current limit, about 3–6 mA |
