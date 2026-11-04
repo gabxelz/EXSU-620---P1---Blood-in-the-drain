@@ -16,6 +16,8 @@ After surgery, nurses judge bleeding from a drain by eye and write down a colour
 | [`cad/tube-clip/`](cad/tube-clip/) | Tube clip v4 (holds the sensor and white LED around the drain tube): STL, STEP, CadQuery source. |
 | [`cad/enclosure/`](cad/enclosure/) | Electronics case v3: base, snap lid, light cap (STL + STEP), assembly STEP, CadQuery source. |
 | [`docs/`](docs/) | Wiring diagrams, case pictures, serial data format ([`docs/serial-output.md`](docs/serial-output.md)). |
+| [`docs/photos/`](docs/photos/) | Build log: photos of the prototype being built and tested. |
+| [`docs/videos/`](docs/videos/) | Demo videos: device alarm states and the live dashboard. |
 | [`report/`](report/) | Design dossier (D9, PDF), filled group report, failure modes list. |
 | [`software/`](software/) | Placeholder for the software subgroup's laptop service and dashboard. |
 | [`BOM.md`](BOM.md) | Bill of materials. |
@@ -59,6 +61,21 @@ Full parts list in [BOM.md](BOM.md). Wiring picture: [`docs/images/full-wiring.p
 | Light cap | `cad/enclosure/T6_light_cap_v1.stl` | 44 × 44 × 15.3 mm. Translucent / white PLA, diffuses the ring. |
 
 All print with no supports. To regenerate the models: `pip install cadquery`, then run `python tube_clip_v4_cad.py` or `python enclosure_v3_cad.py` in that folder.
+
+### Build photos
+
+See the [build log](docs/photos/README.md) for photos of each build step.
+
+![Full rig in CRITICAL](docs/photos/16-final-rig-critical-red-ring.jpg)
+
+## Demo
+
+| | |
+|---|---|
+| Live dashboard (software group) | ![Dashboard](docs/photos/17-dashboard-blood-loss-chart.jpg) |
+| Telegram CRITICAL alert | ![Telegram alert](docs/photos/18-telegram-critical-alert.jpg) |
+
+Videos: [device going NORMAL → ADVISORY](docs/videos/demo-device-normal-to-advisory.mp4) (56 s) and [live dashboard](docs/videos/demo-dashboard-live.mp4) (17 s). On GitHub, click a video and then **View raw** to play it.
 
 ### Fluid rig
 
@@ -116,7 +133,7 @@ These are reported in full in the design dossier (D7 verification report and D9 
 - Flow is entered by hand, not measured, so the mL/h figure is an estimate.
 - Alarms are on % blood, not on the mL/h rate, and the "rate doubles within 30 min" rule (CR-2) is not on the device.
 - No fouled-window, lamp-failure or saturation check in the final firmware.
-- Laptop service, database, dashboard and notification path belong to the software subgroup (see [`software/`](software/)).
+- The laptop service, dashboard and Telegram notification were built and demonstrated by the software subgroup (see the Demo section); their source code goes in [`software/`](software/).
 - Firmware is MicroPython, not the CircuitPython named on the project card.
 - Bench only: dyed water does not scatter light like real drain fluid.
 
